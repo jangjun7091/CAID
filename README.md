@@ -8,12 +8,12 @@ Computer AI Design: Accelerating Hardware Innovation through Agentic AI
 
 ---
 
-> "CAID는 하드웨어 설계의 패러다임을 바꾸기 위한 오픈 소스 프로젝트입니다. 기존의 CAD가 인간의 설계를 '보조'하는 도구였다면, CAID는 LLM과 World Model을 결합하여 AI가 직접 **설계의 주체(Primary Designer)**가 되는 세상을 꿈꿉니다."
+> "CAID는 하드웨어 설계의 패러다임을 바꾸기 위한 오픈 소스 프로젝트입니다. 기존의 CAD가 인간의 설계를 '보조'하는 도구였다면, CAID는 LLM과 World Model을 결합하여 AI가 직접 설계의 주체(Primary Designer)가 되는 세상을 꿈꿉니다."
 
 ---
 
 ### 🌟 Why CAID?
-오늘날 소프트웨어의 발전 속도에 비해 하드웨어 혁신은 느립니다. 그 중심에는 **'수동 모델링'**이라는 병목 현상이 있습니다. 숙련된 엔지니어가 수백 시간을 들여 직접 도면을 그려야 하는 제약을 극복하기 위해, CAID는 **자연어(Text)만으로 3D 부품과 복잡한 어셈블리를 생성**하는 것을 목표로 합니다.
+오늘날 소프트웨어의 발전 속도에 비해 하드웨어 혁신은 느립니다. 그 중심에는 '수동 모델링'이라는 병목 현상이 있습니다. 숙련된 엔지니어가 수백 시간을 들여 직접 도면을 그려야 하는 제약을 극복하기 위해, CAID는 **자연어(Text)만으로 3D 부품과 복잡한 어셈블리를 생성**하는 것을 목표로 합니다.
 
 ### 🛠️ Key Features
 * **Generative Parametric Design:** 단순한 형상이 아닌, 수정 가능한 파라메트릭 코드(CadQuery, OpenSCAD 등)를 생성합니다.
@@ -31,7 +31,7 @@ Computer AI Design: Accelerating Hardware Innovation through Agentic AI
 * `📂 examples/`: 2차 전지 모듈 설계 등 실전 적용 케이스
 
 ### 📈 Roadmap
-- [x] **Phase 1: Foundation (Current)**
+- [ ] **Phase 1: Foundation (Current)**
     - [ ] 텍스트-투-파라메트릭 코드 생성 MVP 구축
     - [ ] 기초 기하학적 형상(Bracket, Enclosure 등) 생성 안정화
 - [ ] **Phase 2: Integration**
@@ -44,7 +44,7 @@ Computer AI Design: Accelerating Hardware Innovation through Agentic AI
 ---
 
 ### 🤝 How to Contribute
-CAID는 인류의 제작 능력을 확장하고자 하는 모든 **'호모 파베르(Homo Faber)'**를 환영합니다. 이슈 제안, 코드 기여, 아이디어 공유 등 무엇이든 좋습니다.
+CAID는 인류의 제작 능력을 확장하고자 하는 모든 '호모 파베르(Homo Faber)'를 환영합니다. 이슈 제안, 코드 기여, 아이디어 공유 등 무엇이든 좋습니다.
 
 ### 📄 License
 This project is licensed under the **MIT License**.
