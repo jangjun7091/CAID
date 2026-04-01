@@ -23,6 +23,7 @@ from core.schema import (
 )
 from core.world_model import WorldModel
 from geometry.cadquery_ext import GeometryService
+from sim.service import SimService
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +112,12 @@ class CriticAgent:
         llm: LLMWrapper,
         world_model: WorldModel,
         geometry: GeometryService,
+        sim: SimService | None = None,
     ) -> None:
         self._llm = llm
         self._wm = world_model
         self._geo = geometry
+        self._sim = sim or SimService()
 
     def critique(
         self,
@@ -240,26 +243,103 @@ class CriticAgent:
 
     def _physics_check(self, artifact: DesignArtifact) -> list[Finding]:
         """
-        Phase 1: simple analytical safety factor estimate using bounding-box volume
-        and applied loads from the spec. Full FEA is integrated in Phase 2.
+        FEA-backed physics check via SimService.
+
+        Runs Gmsh + CalculiX on the STEP file. Falls back to the analytical
+        bounding-box estimate when CalculiX is not installed.
         """
         spec = artifact.params.get("_spec")
-        if spec is None or not spec.loads:
+        if spec is None or not spec.loads or artifact.geometry is None:
             return []
+        if not artifact.geometry.success:
+            return []  # geometry failure already caught by DFM check
 
         ctx = self._wm.query(spec.material, spec.process)
-        geo = artifact.geometry
 
-        # Rough cross-sectional area estimate from bounding box (smallest face)
+        fea = self._sim.run_fea(
+            step_path=artifact.geometry.step_path,
+            ctx=ctx,
+            loads=list(spec.loads),
+            boundary_conditions=list(spec.boundary_conditions),
+            required_safety_factor=spec.safety_factor,
+        )
+
+        findings: list[Finding] = []
+
+        # CalculiX not available — use analytical fallback
+        if not fea.converged:
+            findings.extend(
+                self._analytical_physics_fallback(artifact, spec, ctx)
+            )
+            return findings
+
+        if fea.safety_factor < spec.safety_factor:
+            findings.append(Finding(
+                category=CheckCategory.PHYSICS,
+                severity=Severity.FAIL,
+                message=(
+                    f"FEA safety factor {fea.safety_factor:.2f} is below the required "
+                    f"{spec.safety_factor:.1f}. "
+                    f"Max von Mises stress: {fea.max_stress_mpa:.1f} MPa "
+                    f"(yield: {ctx.yield_strength_mpa:.0f} MPa). "
+                    f"Max displacement: {fea.max_displacement_mm:.3f} mm."
+                ),
+                remediation=(
+                    f"Increase wall thickness or cross-sectional area in the "
+                    f"high-stress region to reduce max stress below "
+                    f"{ctx.yield_strength_mpa / spec.safety_factor:.0f} MPa."
+                ),
+            ))
+
+        # Tolerance stack-up check (if critical dimensions are specified)
+        if spec.tolerance_critical_dims:
+            tol = self._sim.run_tolerance_stack(list(spec.tolerance_critical_dims))
+            if tol.worst_case_gap_mm < 0.0:
+                findings.append(Finding(
+                    category=CheckCategory.PHYSICS,
+                    severity=Severity.FAIL,
+                    message=(
+                        f"Worst-case tolerance stack-up gap is "
+                        f"{tol.worst_case_gap_mm:.4f} mm (interference). "
+                        f"{tol.chain_summary}"
+                    ),
+                    remediation=(
+                        "Tighten tolerances on the critical dimensions or increase "
+                        "the nominal gap to ensure clearance under all tolerance conditions."
+                    ),
+                ))
+            elif tol.violation_probability > 0.001:
+                findings.append(Finding(
+                    category=CheckCategory.PHYSICS,
+                    severity=Severity.WARNING,
+                    message=(
+                        f"RSS tolerance analysis: {tol.violation_probability:.3%} "
+                        f"probability of interference. RSS gap: {tol.rss_gap_mm:.4f} mm."
+                    ),
+                    remediation=(
+                        "Consider tightening tolerances or increasing nominal gap "
+                        "to reduce interference risk below 0.1%."
+                    ),
+                ))
+
+        return findings
+
+    def _analytical_physics_fallback(
+        self, artifact: DesignArtifact, spec, ctx
+    ) -> list[Finding]:
+        """
+        Bounding-box stress estimate used when FEA is unavailable.
+        Same logic as Phase 1, preserved as a fallback.
+        """
+        geo = artifact.geometry
         bb = geo.bounding_box_mm
         min_cross_section_mm2 = min(bb[0] * bb[1], bb[0] * bb[2], bb[1] * bb[2])
 
         if min_cross_section_mm2 < 1.0:
-            return []  # degenerate geometry — caught by DFM check
+            return []
 
         total_load_n = sum(l.magnitude_n for l in spec.loads)
-        stress_mpa = total_load_n / min_cross_section_mm2  # N/mm² = MPa
-
+        stress_mpa = total_load_n / min_cross_section_mm2
         actual_sf = ctx.yield_strength_mpa / stress_mpa if stress_mpa > 0 else float("inf")
 
         if actual_sf < spec.safety_factor:
@@ -267,17 +347,16 @@ class CriticAgent:
                 category=CheckCategory.PHYSICS,
                 severity=Severity.FAIL,
                 message=(
-                    f"Estimated safety factor {actual_sf:.2f} is below the required "
-                    f"{spec.safety_factor:.1f}. Applied load: {total_load_n:.0f} N, "
-                    f"estimated cross-section: {min_cross_section_mm2:.1f} mm²."
+                    f"Analytical estimate: safety factor {actual_sf:.2f} < required "
+                    f"{spec.safety_factor:.1f}. Load: {total_load_n:.0f} N, "
+                    f"min cross-section: {min_cross_section_mm2:.1f} mm². "
+                    f"(Install CalculiX for full FEA.)"
                 ),
                 remediation=(
                     f"Increase the minimum cross-sectional area to at least "
-                    f"{total_load_n * spec.safety_factor / ctx.yield_strength_mpa:.1f} mm² "
-                    f"or reduce the applied load."
+                    f"{total_load_n * spec.safety_factor / ctx.yield_strength_mpa:.1f} mm²."
                 ),
             )]
-
         return []
 
     # ------------------------------------------------------------------

@@ -19,6 +19,7 @@ from core.schema import (
     Load,
     ManufacturingContext,
     ManufacturingProcess,
+    MateConstraint,
     WorkPlan,
 )
 from core.world_model import WorldModel
@@ -56,6 +57,13 @@ class _DesignSpecSchema(BaseModel):
     safety_factor: float
     tolerance_critical_dims: list[_DimSchema]
     notes: str
+
+
+class _MateConstraintSchema(BaseModel):
+    part_a: str
+    part_b: str
+    constraint_type: str
+    description: str
 
 
 # ---------------------------------------------------------------------------
@@ -151,27 +159,84 @@ class ArchitectAgent:
 
     def decompose(self, spec: DesignSpec) -> WorkPlan:
         """
-        Decompose a DesignSpec into individual DesignTasks (one per component).
+        Decompose a DesignSpec into individual DesignTasks and extract
+        assembly mate constraints via LLM (for multi-component assemblies).
 
         Args:
             spec: The validated DesignSpec.
 
         Returns:
-            A WorkPlan with one DesignTask per component.
+            A WorkPlan with one DesignTask per component and mate constraints.
         """
+        ctx = self._wm.query(spec.material, spec.process)
         tasks = tuple(
             DesignTask(
                 component_name=name,
                 spec=spec,
                 acceptance_criteria=(
-                    f"Geometry executes without error",
-                    f"All wall thicknesses >= {self._wm.query(spec.material, spec.process).min_wall_thickness_mm} mm",
-                    f"No DFM FAIL findings",
+                    "Geometry executes without error",
+                    f"All wall thicknesses >= {ctx.min_wall_thickness_mm} mm",
+                    "No DFM FAIL findings",
                 ),
             )
             for name in spec.components
         )
-        return WorkPlan(tasks=tasks, mating_constraints=())
+
+        mate_constraints: tuple[MateConstraint, ...]
+        if len(spec.components) > 1:
+            mate_constraints = self._extract_mate_constraints(spec)
+        else:
+            mate_constraints = ()
+
+        return WorkPlan(tasks=tasks, mating_constraints=mate_constraints)
+
+    def _extract_mate_constraints(self, spec: DesignSpec) -> tuple[MateConstraint, ...]:
+        """
+        Ask Claude to identify how the components in the spec mate together.
+
+        Returns a tuple of MateConstraint objects. Falls back to an empty
+        tuple if the LLM returns unparseable output.
+        """
+        from pydantic import TypeAdapter
+
+        logger.info("Extracting assembly mate constraints for %d components...", len(spec.components))
+
+        try:
+            adapter = TypeAdapter(list[_MateConstraintSchema])
+            raw_text = self._llm.complete(
+                "architect_assembly.jinja2",
+                {
+                    "brief": spec.brief,
+                    "components": list(spec.components),
+                },
+                system="Respond with valid JSON only. No markdown fences.",
+                fast=True,
+            )
+            raw_text = raw_text.strip()
+            if raw_text.startswith("```"):
+                lines = raw_text.splitlines()
+                raw_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+            import json
+            items = json.loads(raw_text)
+            schemas = adapter.validate_python(items)
+
+            constraints = tuple(
+                MateConstraint(
+                    part_a=s.part_a,
+                    part_b=s.part_b,
+                    constraint_type=s.constraint_type,
+                    description=s.description,
+                )
+                for s in schemas
+                if s.part_a in spec.components and s.part_b in spec.components
+            )
+            logger.info("Extracted %d mate constraint(s).", len(constraints))
+            return constraints
+
+        except Exception as exc:
+            logger.warning("Could not extract mate constraints: %s", exc)
+            return ()
 
     def select_manufacturing_context(self, spec: DesignSpec) -> ManufacturingContext:
         """Return a ManufacturingContext for the given spec."""
