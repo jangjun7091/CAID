@@ -1,0 +1,47 @@
+# Manufacturing process DFM rules for CAID WorldModel
+# These are deterministic bounds used by CriticAgent._dfm_check().
+
+FDM:
+  full_name: Fused Deposition Modeling
+  min_wall_thickness_mm: 1.2
+  min_feature_size_mm: 0.8
+  draft_angle_deg: 0.0        # not applicable for FDM
+  max_overhang_deg: 45.0      # degrees from horizontal before support needed
+  typical_surface_roughness_ra: 12.5
+  notes: "Avoid large unsupported overhangs. Orient parts to minimize supports."
+
+SLS:
+  full_name: Selective Laser Sintering
+  min_wall_thickness_mm: 0.8
+  min_feature_size_mm: 0.5
+  draft_angle_deg: 0.0        # not required for SLS
+  max_overhang_deg: 90.0      # powder bed provides support
+  typical_surface_roughness_ra: 10.0
+  notes: "Hollow structures must have powder escape holes >= 5mm diameter."
+
+CNC:
+  full_name: CNC Machining
+  min_wall_thickness_mm: 0.8
+  min_feature_size_mm: 0.5    # limited by smallest end mill diameter
+  draft_angle_deg: 0.0        # not required unless mold-like
+  max_overhang_deg: 0.0       # not applicable
+  typical_surface_roughness_ra: 1.6
+  notes: "Internal corners will have a radius matching the tool. Avoid deep narrow slots (depth:width > 6:1)."
+
+INJECTION_MOLDING:
+  full_name: Injection Molding
+  min_wall_thickness_mm: 1.0
+  min_feature_size_mm: 0.5
+  draft_angle_deg: 1.0        # minimum degrees per side
+  max_overhang_deg: 0.0       # undercuts require side actions
+  typical_surface_roughness_ra: 0.8
+  notes: "Maintain uniform wall thickness. Draft all vertical faces >= 1 degree. Avoid undercuts."
+
+SHEET_METAL:
+  full_name: Sheet Metal Fabrication
+  min_wall_thickness_mm: 0.5
+  min_feature_size_mm: 1.0
+  draft_angle_deg: 0.0
+  max_overhang_deg: 0.0
+  typical_surface_roughness_ra: 3.2
+  notes: "Bend radius must be >= material thickness. Hole diameter >= material thickness."

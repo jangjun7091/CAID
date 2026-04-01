@@ -1,0 +1,57 @@
+# Material property library for CAID WorldModel
+# All values are nominal/typical; they bound LLM-generated design parameters.
+
+Al6061:
+  full_name: Aluminum 6061-T6
+  class: aluminum_alloy
+  youngs_modulus_gpa: 68.9
+  yield_strength_mpa: 276.0
+  ultimate_strength_mpa: 310.0
+  density_g_cm3: 2.70
+  poisson_ratio: 0.33
+  thermal_expansion_um_m_k: 23.6
+  compatible_processes: [CNC, SHEET_METAL]
+
+Steel1045:
+  full_name: Carbon Steel 1045
+  class: carbon_steel
+  youngs_modulus_gpa: 200.0
+  yield_strength_mpa: 310.0
+  ultimate_strength_mpa: 565.0
+  density_g_cm3: 7.85
+  poisson_ratio: 0.29
+  thermal_expansion_um_m_k: 11.7
+  compatible_processes: [CNC, SHEET_METAL]
+
+PA12:
+  full_name: Polyamide 12 (Nylon 12)
+  class: thermoplastic
+  youngs_modulus_gpa: 1.6
+  yield_strength_mpa: 48.0
+  ultimate_strength_mpa: 50.0
+  density_g_cm3: 1.01
+  poisson_ratio: 0.39
+  thermal_expansion_um_m_k: 100.0
+  compatible_processes: [SLS, INJECTION_MOLDING]
+
+PLA:
+  full_name: Polylactic Acid
+  class: bioplastic
+  youngs_modulus_gpa: 3.5
+  yield_strength_mpa: 50.0
+  ultimate_strength_mpa: 65.0
+  density_g_cm3: 1.24
+  poisson_ratio: 0.36
+  thermal_expansion_um_m_k: 68.0
+  compatible_processes: [FDM]
+
+ABS:
+  full_name: Acrylonitrile Butadiene Styrene
+  class: thermoplastic
+  youngs_modulus_gpa: 2.3
+  yield_strength_mpa: 40.0
+  ultimate_strength_mpa: 44.0
+  density_g_cm3: 1.05
+  poisson_ratio: 0.35
+  thermal_expansion_um_m_k: 90.0
+  compatible_processes: [FDM, INJECTION_MOLDING]
