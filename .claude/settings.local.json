@@ -6,7 +6,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:pypi.org)",
       "WebFetch(domain:boltsparts.github.io)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

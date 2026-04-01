@@ -2,11 +2,17 @@
 """
 ArchitectAgent: parses a natural-language design brief into a structured
 DesignSpec and decomposes it into a WorkPlan of DesignTasks.
+
+Phase 3 addition: before decomposing, searches the part library for existing
+parts that match each component. Matches are appended to DesignSpec.notes so
+the DesignerAgent can reuse or adapt them instead of generating from scratch.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import logging
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -79,9 +85,15 @@ class ArchitectAgent:
         world_model: WorldModel instance for constraint validation.
     """
 
-    def __init__(self, llm: LLMWrapper, world_model: WorldModel) -> None:
+    def __init__(
+        self,
+        llm: LLMWrapper,
+        world_model: WorldModel,
+        repository=None,   # Optional[PartRepository] — imported lazily to avoid circular deps
+    ) -> None:
         self._llm = llm
         self._wm = world_model
+        self._repository = repository
 
     def parse_brief(self, brief: str) -> DesignSpec:
         """
@@ -169,6 +181,10 @@ class ArchitectAgent:
             A WorkPlan with one DesignTask per component and mate constraints.
         """
         ctx = self._wm.query(spec.material, spec.process)
+
+        # Phase 3: search for reusable library parts before generating
+        spec = self._inject_library_hints(spec)
+
         tasks = tuple(
             DesignTask(
                 component_name=name,
@@ -189,6 +205,50 @@ class ArchitectAgent:
             mate_constraints = ()
 
         return WorkPlan(tasks=tasks, mating_constraints=mate_constraints)
+
+    def search_library(self, query: str, top_k: int = 3) -> list:
+        """
+        Search the part library for existing parts matching a query string.
+
+        Returns a list of (PartRecord, score) pairs, or [] if no repository
+        is configured or the library is empty.
+        """
+        if self._repository is None:
+            return []
+        from library.search import PartSearchIndex
+        index = PartSearchIndex(self._repository)
+        return index.search(query, top_k=top_k)
+
+    def _inject_library_hints(self, spec: DesignSpec) -> DesignSpec:
+        """
+        Search the part library for each component in the spec.
+
+        If any matches are found, the top candidates are appended to
+        DesignSpec.notes so the DesignerAgent can reference or adapt them.
+        Returns a new DesignSpec (frozen dataclass replacement); unchanged if
+        no repository is configured or no matches found.
+        """
+        if self._repository is None:
+            return spec
+
+        hints: list[str] = []
+        for name in spec.components:
+            query = f"{name} {spec.material} {spec.process.value}"
+            matches = self.search_library(query, top_k=2)
+            if matches:
+                parts_text = "; ".join(
+                    f"'{rec.name}' (score={score:.2f}): {rec.description[:80]}"
+                    for rec, score in matches
+                )
+                hints.append(f"Library matches for '{name}': {parts_text}")
+
+        if not hints:
+            return spec
+
+        extra = "\n\nPart library suggestions (reuse or adapt if appropriate):\n" + "\n".join(hints)
+        updated_notes = spec.notes + extra
+        logger.info("Injected %d library hint(s) into DesignSpec.notes.", len(hints))
+        return dataclasses.replace(spec, notes=updated_notes)
 
     def _extract_mate_constraints(self, spec: DesignSpec) -> tuple[MateConstraint, ...]:
         """

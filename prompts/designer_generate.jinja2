@@ -51,6 +51,24 @@ Remediation: {{ finding.remediation }}
 
 ## CadQuery Safety Rules — MUST follow to avoid runtime errors
 
+### Color names — only these string values work with `cq.Color(name)`
+Valid:   'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'cyan', 'magenta',
+         'white', 'black', 'brown', 'teal', 'maroon',
+         'gray', 'lightgray', 'GRAY1', 'GRAY2'
+Invalid: 'darkgray', 'grey', 'darkgrey', 'silver', 'olive', 'navy'  ← raise ValueError at runtime
+Alternative: `cq.Color(r, g, b)` with floats 0.0–1.0 always works, e.g. `cq.Color(0.4, 0.4, 0.4)`.
+
+### Multi-part assembly placement — bolt/pin Z origin rule
+When placing a fastener into a mating hole, the bolt origin in the generated code
+MUST align with the surface where the bolt head seats — NOT at Z = 0 or at the
+chassis centre. Use:
+
+    loc=cq.Location(cq.Vector(hole_x, hole_y, seating_surface_z))
+
+where `seating_surface_z` is the Z coordinate of the face the bolt head rests on
+(counterbore floor, or top face of the mating part). Placing the bolt at Z = 0
+when the part centre is inside the chassis body will cause massive interference.
+
 ### FORBIDDEN — these patterns cause `ValueError: Selected faces must be co-planar`
 - NEVER use `|Z`, `|X`, or `|Y` as a face selector immediately before `.workplane()`.
   After boolean operations or fillets, these selectors can match multiple non-coplanar

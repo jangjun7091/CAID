@@ -23,6 +23,7 @@ from core.schema import (
 )
 from core.world_model import WorldModel
 from geometry.cadquery_ext import GeometryService
+from sim.quick_check import run_quick_check
 from sim.service import SimService
 
 logger = logging.getLogger(__name__)
@@ -183,6 +184,11 @@ class CriticAgent:
         ctx = self._wm.query(spec.material, spec.process)
         process_notes = self._wm.get_process_notes(spec.process)
         geo = artifact.geometry
+
+        # Fast rule-based pre-filter — run before the LLM call to save tokens
+        quick_findings = run_quick_check(geo, ctx)
+        if any(f.severity.value == "FAIL" for f in quick_findings):
+            return quick_findings
 
         raw_text = self._llm.complete(
             "critic_dfm.jinja2",

@@ -1,0 +1,25 @@
+You are a mechanical engineering expert. Analyse the CadQuery Python code below and extract functional metadata for the part named "{{ part_name }}".
+
+Return a single JSON object with exactly these keys:
+
+{
+  "mounting_holes": [
+    {"diameter_mm": <float>, "count": <int>, "pattern": "<description>"}
+  ],
+  "mating_axes": ["<axis or face description>", ...],
+  "key_dimensions": {"<name>_mm": <float>, ...},
+  "feature_summary": "<one sentence: what this part does functionally>",
+  "material_hint": "<material string found in code variables/comments, or empty string>"
+}
+
+Rules:
+- mounting_holes: include only circular cutouts (cBore, cSink, circle().cutThruAll, etc.) clearly intended for fasteners. diameter_mm is the clearance hole diameter.
+- mating_axes: describe each face or axis used for assembly contact (e.g. "bottom face", "Z-axis bore", "flanged rim").
+- key_dimensions: extract named numeric variables (width, height, length, diameter, thickness, etc.) from the code. Values in mm. Skip angles, ratios, and unitless constants.
+- feature_summary: describe the part's mechanical function in plain English, one sentence.
+- material_hint: look for strings like "Al6061", "PLA", "steel", "ABS" in variable names, comments, or string literals. Empty string if none found.
+
+CadQuery code:
+```python
+{{ code }}
+```

@@ -97,7 +97,7 @@ class AgentOrchestrator:
         geometry = GeometryService(output_dir=output_dir)
         sim = SimService()
 
-        architect = ArchitectAgent(llm=llm, world_model=world_model)
+        architect = ArchitectAgent(llm=llm, world_model=world_model, repository=repository)
         designer = DesignerAgent(llm=llm, world_model=world_model, geometry=geometry)
         critic = CriticAgent(llm=llm, world_model=world_model, geometry=geometry, sim=sim)
 
