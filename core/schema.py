@@ -35,6 +35,11 @@ class ManufacturingProcess(str, Enum):
     SHEET_METAL = "SHEET_METAL"
 
 
+class PartKind(str, Enum):
+    CUSTOM = "CUSTOM"      # AI-generated, project-specific
+    STANDARD = "STANDARD"  # ISO standard catalog part
+
+
 # ---------------------------------------------------------------------------
 # Input types
 # ---------------------------------------------------------------------------

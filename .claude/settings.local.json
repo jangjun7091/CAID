@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:cq-warehouse.readthedocs.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:boltsparts.github.io)",
+      "Bash(python:*)"
+    ]
+  }
+}

@@ -1,18 +1,21 @@
 """
 CAID REST API — FastAPI routes.
 
-Endpoints:
-  POST   /designs                          Submit a design brief, returns session_id.
-  GET    /designs/{session_id}             Poll session status and results.
-  GET    /designs/{session_id}/artifacts/{name}  Download a STEP or STL file.
-  POST   /designs/{session_id}/refine      Append human feedback and trigger re-run.
-  GET    /materials                        List available materials.
-  GET    /processes                        List available manufacturing processes.
-  GET    /health                           Liveness probe.
+Design endpoints:
+  POST   /designs                                    Submit a design brief.
+  GET    /designs/{session_id}                       Poll session status.
+  GET    /designs/{session_id}/artifacts/{name}      Download STEP or STL.
+  POST   /designs/{session_id}/refine                Re-run with human feedback.
+  GET    /materials                                  List materials.
+  GET    /processes                                  List processes.
+  GET    /health                                     Liveness probe.
 
-Design sessions run synchronously in a background thread so the POST /designs
-endpoint returns immediately with a session_id. Callers poll GET /designs/{id}
-until status is "complete" or "failed".
+Part library endpoints (Phase 3):
+  GET    /parts                                      List all parts (filterable).
+  GET    /parts/{part_id}                            Fetch one part record.
+  GET    /parts/catalog/standards                    List supported ISO standards.
+  GET    /parts/catalog/standards/{standard}/sizes   List sizes for a standard.
+  POST   /parts/catalog                              Generate & save a catalog part.
 """
 
 from __future__ import annotations
@@ -24,13 +27,17 @@ import uuid
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from core.orchestrator import AgentOrchestrator
+from core.schema import PartKind
 from core.session import DesignSession
 from core.world_model import WorldModel
+from geometry.cadquery_ext import GeometryService
+from library.catalog import ISOPartSpec, StandardPartsCatalog
+from library.repository import PartRecord, PartRepository
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +58,9 @@ _sessions_lock = threading.Lock()
 
 _world_model = WorldModel()
 _OUTPUT_DIR = Path(os.environ.get("CAID_OUTPUT_DIR", "output"))
+_part_repo = PartRepository(db_path=_OUTPUT_DIR / "parts.db")
+_catalog = StandardPartsCatalog()
+_catalog_geo = GeometryService(output_dir=_OUTPUT_DIR / "catalog")
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +88,13 @@ class SessionStatusResponse(BaseModel):
 
 class RefineRequest(BaseModel):
     feedback: str
+
+
+class CatalogPartRequest(BaseModel):
+    standard: str               # e.g. "ISO 4762"
+    size: str                   # e.g. "M3"
+    length_mm: Optional[float] = None   # required for screws
+    simple: bool = True         # False = threaded geometry via cq_warehouse (if installed)
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +231,124 @@ def refine_session(
 
 
 # ---------------------------------------------------------------------------
+# Part library routes (Phase 3)
+# ---------------------------------------------------------------------------
+
+@app.get("/parts")
+def list_parts(
+    kind: Optional[str] = Query(default=None, description="CUSTOM or STANDARD"),
+    q: str = Query(default="", description="Substring search over name and description"),
+    tags: str = Query(default="", description="Comma-separated tag filter"),
+) -> dict:
+    """List all parts, optionally filtered by kind, free-text query, and tags."""
+    kind_enum: Optional[PartKind] = None
+    if kind:
+        try:
+            kind_enum = PartKind(kind.upper())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid kind {kind!r}. Use CUSTOM or STANDARD.")
+
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    parts = _part_repo.search(query=q, tags=tag_list or None, kind=kind_enum)
+    return {"parts": [_part_to_dict(p) for p in parts], "total": len(parts)}
+
+
+@app.get("/parts/catalog/standards")
+def list_catalog_standards() -> dict:
+    """List supported ISO standards and whether cq_warehouse threaded geometry is available."""
+    return {
+        "standards": _catalog.available_standards(),
+        "backend": _catalog.backend(),
+    }
+
+
+@app.get("/parts/catalog/standards/{standard}/sizes")
+def list_catalog_sizes(standard: str) -> dict:
+    """List supported metric sizes for the given ISO standard."""
+    try:
+        sizes = _catalog.available_sizes(standard)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"standard": standard, "sizes": sizes}
+
+
+@app.post("/parts/catalog", status_code=201)
+def create_catalog_part(request: CatalogPartRequest) -> dict:
+    """
+    Generate a standard ISO catalog part and save it to the part repository.
+
+    Returns the saved PartRecord including the assigned part id and file paths.
+    """
+    spec = ISOPartSpec(
+        standard=request.standard,
+        size=request.size,
+        length_mm=request.length_mm,
+        simple=request.simple,
+    )
+
+    try:
+        code, description = _catalog.get_code(spec)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    part_name = _catalog.get_part_name(spec)
+    geo = _catalog_geo.execute_cadquery(code, part_name)
+
+    if not geo.success:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Geometry generation failed: {geo.error}",
+        )
+
+    record = PartRecord(
+        name=part_name,
+        description=description,
+        kind=PartKind.STANDARD,
+        tags=[request.standard.lower().replace(" ", "_"), request.size.lower(), "fastener"],
+        parameters={
+            "standard": request.standard,
+            "size": request.size,
+            "length_mm": request.length_mm,
+            "simple": request.simple,
+        },
+        cadquery_code=code,
+        step_path=str(geo.step_path) if geo.step_path else None,
+        stl_path=str(geo.stl_path) if geo.stl_path else None,
+        iso_standard=request.standard,
+    )
+    _part_repo.save(record)
+    return _part_to_dict(record)
+
+
+@app.get("/parts/{part_id}")
+def get_part(part_id: str) -> dict:
+    """Fetch a single part record by id."""
+    part = _part_repo.get(part_id)
+    if part is None:
+        raise HTTPException(status_code=404, detail=f"Part '{part_id}' not found.")
+    return _part_to_dict(part)
+
+
+# ---------------------------------------------------------------------------
+# Internal helper
+# ---------------------------------------------------------------------------
+
+def _part_to_dict(part: PartRecord) -> dict:
+    return {
+        "id": part.id,
+        "name": part.name,
+        "description": part.description,
+        "kind": part.kind.value,
+        "tags": part.tags,
+        "parameters": part.parameters,
+        "iso_standard": part.iso_standard,
+        "step_path": part.step_path,
+        "stl_path": part.stl_path,
+        "created_at": part.created_at,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Background task
 # ---------------------------------------------------------------------------
 
@@ -225,6 +360,7 @@ def _run_design(session_id: str, request: DesignRequest) -> None:
             model=os.environ.get("CAID_MODEL", "claude-sonnet-4-6"),
             output_dir=_OUTPUT_DIR / session_id,
             max_iterations=request.max_iterations,
+            repository=_part_repo,
         )
         session = orchestrator.run(request.brief)
 

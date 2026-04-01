@@ -28,6 +28,13 @@ dev = [
     "pytest-cov",
     "httpx>=0.27.0",    # for FastAPI TestClient
 ]
+standard-parts = [
+    # cq_warehouse provides parametric ISO fasteners for CadQuery.
+    # Not on PyPI — install from source:
+    #   pip install git+https://github.com/gumyr/cq_warehouse.git
+    # Without this, StandardPartsCatalog falls back to pure-CadQuery geometry.
+    "cq_warehouse @ git+https://github.com/gumyr/cq_warehouse.git",
+]
 
 [project.scripts]
 caid = "caid_cli:main"
