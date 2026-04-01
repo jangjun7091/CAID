@@ -30,16 +30,26 @@ Computer AI Design: Accelerating Hardware Innovation through Agentic AI
 * `📂 sim/`: 자동화된 물리 해석 및 공차 검토 엔진
 * `📂 examples/`: 2차 전지 모듈 설계 등 실전 적용 케이스
 
-### 📈 Roadmap
-- [ ] **Phase 1: Foundation (Current)**
-    - [ ] 텍스트-투-파라메트릭 코드 생성 MVP 구축
-    - [ ] 기초 기하학적 형상(Bracket, Enclosure 등) 생성 안정화
-- [ ] **Phase 2: Integration**
-    - [ ] 시뮬레이션(FEA) 피드백 루프 자동화
-    - [ ] 부품 간 구속 조건(Mate) 인식을 통한 어셈블리 생성
-- [ ] **Phase 3: Intelligence**
-    - [ ] 제조 공정 제약(DFM) 학습 및 최적화
-    - [ ] 하드웨어 특화 월드 모델(Hardware World Model) 고도화
+## 🗺️ CAID Roadmap: The Modular Synthesis Path
+
+### ✅ Phase 1 & 2: Core & Assembly (Completed)
+- [x] Natural language to 3D geometry (CadQuery)
+- [x] Basic interference detection & self-correction
+- [x] Initial 2-part assembly capability
+
+### 🚀 Phase 3: Smart Library & Part Intelligence (Current)
+- [ ] **Part Repository**: Saving generated models as reusable "Bricks".
+- [ ] **Functional Metadata**: AI tagging of mounting points, holes, and axes.
+- [ ] **Structural Sanity Check**: Light-weight feedback on model viability (Non-precise FEA).
+
+### 🛠️ Phase 4: Advanced Modular Assembly (Planned)
+- [ ] **Semantic Mating**: Text-based assembly commands (e.g., "Attach A to B via M3 holes").
+- [ ] **Global Tolerance Control**: Automatic clearance adjustment for real-world assembly.
+- [ ] **Standard Part Integration**: Using off-the-shelf parts (Bolts, Motors) in the assembly.
+
+### 🌌 Phase 5: Autonomous System Building (Vision)
+- [ ] **Recursive Synthesis**: Building complex machines from modular sub-assemblies.
+- [ ] **Generative Layout**: AI proposing optimal part arrangements for a given goal.
 
 ---
 
