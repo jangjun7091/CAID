@@ -28,6 +28,55 @@ logger = logging.getLogger(__name__)
 
 _INTERFERENCE_THRESHOLD_MM3 = 0.01  # volumes below this are floating point noise
 
+# Map known CadQuery error substrings to actionable remediation text.
+_CADQUERY_ERROR_REMEDIATIONS: list[tuple[str, str]] = [
+    (
+        "Selected faces must be co-planar",
+        (
+            "The call to .workplane() received multiple non-coplanar faces. "
+            "Do NOT use '|Z', '|X', or '|Y' face selectors before .workplane() — "
+            "they can match several faces at different heights. "
+            "Use directional selectors ('>Z', '<Z', '>X', etc.) which always return "
+            "a single face, or start a fresh cq.Workplane('XY', origin=(x, y, z)) "
+            "with explicit coordinates instead of chaining through a face selector."
+        ),
+    ),
+    (
+        "No pending wires present",
+        (
+            "A .extrude(), .cutBlind(), or similar operation was called with no "
+            "pending 2-D wire on the stack. Ensure .circle(), .rect(), .polygon(), "
+            "or .polyline() is called before the extrude/cut."
+        ),
+    ),
+    (
+        "Workplane must be initialized",
+        (
+            "The CadQuery Workplane was used before a base plane was set. "
+            "Always start the chain with cq.Workplane('XY') (or 'XZ'/'YZ')."
+        ),
+    ),
+    (
+        "Edge not found",
+        (
+            "An edge selector returned no results. Check that the selector string "
+            "matches existing edges after all boolean and fillet operations."
+        ),
+    ),
+]
+
+
+def _execution_remediation(error: str) -> str:
+    """Return a specific remediation string for a known CadQuery execution error."""
+    for substring, remediation in _CADQUERY_ERROR_REMEDIATIONS:
+        if substring in error:
+            return remediation
+    return (
+        "Fix the error shown above. Read the full traceback to identify the "
+        "exact line number and CadQuery call that failed, then rewrite that "
+        "operation using safe alternatives."
+    )
+
 
 # ---------------------------------------------------------------------------
 # Pydantic schema for LLM-returned DFM findings
@@ -91,7 +140,7 @@ class CriticAgent:
                 category=CheckCategory.DFM,
                 severity=Severity.FAIL,
                 message=f"Code execution failed: {error}",
-                remediation="Fix the Python syntax or logic error in the generated code.",
+                remediation=_execution_remediation(error),
             ))
             return CritiqueReport(artifact=artifact, findings=tuple(findings))
 
@@ -235,7 +284,8 @@ class CriticAgent:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _parse_findings(self, raw_text: str, default_category: CheckCategory) -> list[Finding]:
+    @staticmethod
+    def _parse_findings(raw_text: str, default_category: CheckCategory) -> list[Finding]:
         """Parse a JSON array of findings from an LLM response."""
         raw_text = raw_text.strip()
         # Strip markdown fences if present

@@ -21,6 +21,18 @@ Process: {{ process }}
 ## DFM Notes
 {{ process_notes }}
 
+{% if execution_error %}
+## EXECUTION ERROR — This must be fixed before anything else
+The previous code raised the following exception at runtime:
+
+```
+{{ execution_error }}
+```
+
+Read the traceback carefully. The error class and the line that caused it are
+the primary thing to fix. Do NOT reproduce the same pattern.
+{% endif %}
+
 {% if critique %}
 ## Previous Critique — Fix These Issues
 {% for finding in critique %}
@@ -29,27 +41,91 @@ Remediation: {{ finding.remediation }}
 {% endfor %}
 {% endif %}
 
+## CadQuery Safety Rules — MUST follow to avoid runtime errors
+
+### FORBIDDEN — these patterns cause `ValueError: Selected faces must be co-planar`
+- NEVER use `|Z`, `|X`, or `|Y` as a face selector immediately before `.workplane()`.
+  After boolean operations or fillets, these selectors can match multiple non-coplanar
+  faces, which makes `.workplane()` raise this error.
+  ```python
+  # BAD — do not do this:
+  result = (
+      cq.Workplane("XY")
+      .box(50, 30, 10)
+      .faces("|Z")      # matches TOP and BOTTOM — two faces, not coplanar after ops
+      .workplane()
+      .circle(5).cutBlind(3)
+  )
+  ```
+
+- NEVER chain `.workplane()` on the result of `.shell()`, `.fillet()`, or `.chamfer()`
+  using a parallel-normal selector (`|Z`, etc.). These operations change face topology.
+
+### SAFE alternatives for selecting a face to work on
+1. **Directional selectors** — always return the single extremal face:
+   - `>Z` = topmost face, `<Z` = bottommost face
+   - `>X` = rightmost, `<X` = leftmost, `>Y` = front, `<Y` = back
+   ```python
+   .faces(">Z").workplane()   # safe: picks exactly one face
+   ```
+
+2. **Explicit origin** — start a fresh workplane at known coordinates:
+   ```python
+   cq.Workplane("XY", origin=(0, 0, height_mm))
+   ```
+
+3. **Offset from base plane** — keep all features on the same plane, use `.workplane(offset=h)`:
+   ```python
+   cq.Workplane("XY").workplane(offset=height_mm)
+   ```
+
+4. **Build geometry by stacking from base** — for complex brackets, extrude each
+   feature from the base `cq.Workplane("XY")` rather than chaining through faces.
+
 ## Instructions
 1. Write complete, executable CadQuery Python code.
-2. Import cadquery as cq at the top.
+2. `import cadquery as cq` at the top.
 3. Assign the final solid to a variable named `result`.
-4. Use explicit numeric parameters (no magic numbers — define them as named variables).
+4. Use named variables for all numeric parameters — no bare magic numbers.
 5. All dimensions in millimeters.
-6. Do NOT include any test code, print statements, or file exports — only the geometry.
+6. Do NOT include print statements, file exports, or test code.
 7. Wrap your code in a ```python code block.
 
-Example structure:
+## Example — safe mounting bracket pattern
 ```python
 import cadquery as cq
 
 # Parameters
-length_mm = 100.0
-width_mm  = 50.0
-height_mm = 10.0
-wall_mm   = 3.0
+base_length_mm  = 80.0
+base_width_mm   = 50.0
+base_thick_mm   = 6.0
+wall_height_mm  = 40.0
+wall_thick_mm   = 6.0
+hole_diam_mm    = 5.5
+fillet_r_mm     = 2.0
 
+# Base plate
+base = cq.Workplane("XY").box(base_length_mm, base_width_mm, base_thick_mm)
+
+# Vertical wall — start a fresh workplane at known Z rather than using |Z
+wall = (
+    cq.Workplane("XY", origin=(0, 0, base_thick_mm))
+    .rect(wall_thick_mm, base_width_mm)
+    .extrude(wall_height_mm)
+    .translate((-base_length_mm / 2 + wall_thick_mm / 2, 0, 0))
+)
+
+# Union and add mounting holes using directional selector (safe)
 result = (
-    cq.Workplane("XY")
-    .box(length_mm, width_mm, height_mm)
+    base.union(wall)
+    .faces(">Z").workplane()          # safe: single topmost face
+    .pushPoints([
+        ( base_length_mm / 2 - 10, -base_width_mm / 2 + 10),
+        ( base_length_mm / 2 - 10,  base_width_mm / 2 - 10),
+        (-base_length_mm / 2 + 10, -base_width_mm / 2 + 10),
+        (-base_length_mm / 2 + 10,  base_width_mm / 2 - 10),
+    ])
+    .hole(hole_diam_mm)
+    .edges("|Z").fillet(fillet_r_mm)
 )
 ```

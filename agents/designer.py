@@ -73,6 +73,7 @@ class DesignerAgent:
                 "ctx": ctx,
                 "process_notes": process_notes,
                 "critique": None,
+                "execution_error": None,
             },
             max_tokens=_MAX_CODE_TOKENS,
         )
@@ -118,6 +119,13 @@ class DesignerAgent:
             for f in critique.failures + critique.warnings
         ]
 
+        # Surface the raw execution error separately so the template can
+        # highlight it above the generic findings list. This gives the LLM
+        # the exact exception message rather than a paraphrased version.
+        execution_error: str | None = None
+        if artifact.geometry is not None and not artifact.geometry.success:
+            execution_error = artifact.geometry.error
+
         code = self._llm.complete_code(
             "designer_generate.jinja2",
             {
@@ -129,6 +137,7 @@ class DesignerAgent:
                 "ctx": ctx,
                 "process_notes": process_notes,
                 "critique": findings_for_template,
+                "execution_error": execution_error,
             },
             max_tokens=_MAX_CODE_TOKENS,
         )
