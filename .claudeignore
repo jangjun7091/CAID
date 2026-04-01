@@ -1,0 +1,23 @@
+# CAID — Claude context exclusions
+# These paths are excluded from Claude's context window to reduce token usage.
+
+# Generated geometry artifacts
+output/
+*.step
+*.stl
+*.stp
+
+# Session logs (large JSON, not useful as context)
+session.json
+**/session.json
+
+# Git internals
+.git/
+
+# Python bytecode and build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/

@@ -65,8 +65,8 @@ def main() -> None:
     design_parser = sub.add_parser("design", help="Run the design loop for a brief")
     design_parser.add_argument("brief", help="Natural-language design brief")
     design_parser.add_argument(
-        "--max-iterations", type=int, default=5, metavar="N",
-        help="Max Design-Critique-Refine cycles per component (default: 5)"
+        "--max-iterations", type=int, default=3, metavar="N",
+        help="Max Design-Critique-Refine cycles per component (default: 3)"
     )
     design_parser.add_argument(
         "--output", default="output", metavar="DIR",

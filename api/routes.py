@@ -59,7 +59,7 @@ _OUTPUT_DIR = Path(os.environ.get("CAID_OUTPUT_DIR", "output"))
 
 class DesignRequest(BaseModel):
     brief: str
-    max_iterations: int = 5
+    max_iterations: int = 3
 
 
 class DesignResponse(BaseModel):

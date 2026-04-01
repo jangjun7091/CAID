@@ -32,7 +32,7 @@ from sim.service import SimService
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MAX_ITERATIONS = 5
+_DEFAULT_MAX_ITERATIONS = 3
 
 
 class AgentOrchestrator:
