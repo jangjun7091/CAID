@@ -15,7 +15,6 @@ import re
 from pathlib import Path
 from typing import TypeVar, Type
 
-import anthropic
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from pydantic import BaseModel
 
@@ -44,6 +43,7 @@ class LLMWrapper:
         fast_model: str = "claude-haiku-4-5-20251001",
         max_retries: int = 3,
     ) -> None:
+        import anthropic  # lazy import — not needed when using OllamaWrapper
         self._client = anthropic.Anthropic(api_key=api_key, max_retries=max_retries)
         self.model = model
         self.fast_model = fast_model

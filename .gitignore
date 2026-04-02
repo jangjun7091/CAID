@@ -23,11 +23,13 @@ env/
 # Output artifacts
 output/
 
-# IDE
+# IDE / tools
 .vscode/
 .idea/
 *.iml
+.claude/
 
 # OS
 .DS_Store
 Thumbs.db
+Miniforge3-Linux-x86_64.sh

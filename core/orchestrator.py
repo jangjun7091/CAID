@@ -12,6 +12,7 @@ Phase 2 additions:
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -19,6 +20,7 @@ from agents.architect import ArchitectAgent
 from agents.critic import CriticAgent
 from agents.designer import DesignerAgent
 from core.llm_wrapper import LLMWrapper
+from core.ollama_wrapper import OllamaWrapper
 from core.schema import (
     Assembly,
     CritiqueReport,
@@ -79,23 +81,52 @@ class AgentOrchestrator:
         output_dir: Path | str = Path("output"),
         max_iterations: int = _DEFAULT_MAX_ITERATIONS,
         repository: Optional[PartRepository] = None,
+        use_local_llm: bool | None = None,
+        ollama_model: str | None = None,
+        ollama_base_url: str | None = None,
     ) -> "AgentOrchestrator":
         """
         Factory method that wires all dependencies together.
 
+        Local Ollama is enabled when ``use_local_llm=True`` or when the
+        ``CAID_USE_LOCAL_LLM`` env var is set to ``1``/``true``/``yes``.
+        Model and base URL fall back to ``LLM_MODEL`` / ``LLM_BASE_URL`` env
+        vars so the ``.env`` file is the single place to configure local inference.
+
         Args:
-            api_key: Anthropic API key (reads ANTHROPIC_API_KEY env var if None).
-            model: Claude model ID for generation.
+            api_key: Anthropic API key. Ignored when local LLM is active.
+            model: Claude model ID. Ignored when local LLM is active.
             output_dir: Directory for STEP/STL outputs.
             max_iterations: Max refine cycles per component.
-            repository: Optional PartRepository; if provided, every successfully
-                        designed component is saved as a CUSTOM part automatically.
+            repository: Optional PartRepository; successful parts are auto-saved.
+            use_local_llm: Route all LLM calls to a local Ollama server.
+                           Defaults to the ``CAID_USE_LOCAL_LLM`` env var.
+            ollama_model: Ollama model tag. Defaults to ``LLM_MODEL`` env var,
+                          then ``"llama3"``.
+            ollama_base_url: Ollama server base URL. Defaults to ``LLM_BASE_URL``
+                             env var, then ``"http://localhost:11434/v1"``.
         """
+        # Resolve local-LLM flag from argument, then env var
+        if use_local_llm is None:
+            use_local_llm = os.environ.get("CAID_USE_LOCAL_LLM", "").lower() in (
+                "1", "true", "yes"
+            )
+
+        # Resolve model / URL from arguments, then dedicated env vars
+        resolved_model = ollama_model or os.environ.get("LLM_MODEL", "llama3")
+        resolved_url = ollama_base_url or os.environ.get(
+            "LLM_BASE_URL", "http://localhost:11434/v1"
+        )
+
         output_dir = Path(output_dir)
-        llm = LLMWrapper(api_key=api_key, model=model)
         world_model = WorldModel()
         geometry = GeometryService(output_dir=output_dir)
         sim = SimService()
+
+        if use_local_llm:
+            llm = OllamaWrapper(model=resolved_model, base_url=resolved_url)
+        else:
+            llm = LLMWrapper(api_key=api_key, model=model)
 
         architect = ArchitectAgent(llm=llm, world_model=world_model, repository=repository)
         designer = DesignerAgent(llm=llm, world_model=world_model, geometry=geometry)

@@ -28,7 +28,7 @@ class DesignerAgent:
     refines it based on CriticAgent feedback.
 
     Args:
-        llm: LLMWrapper instance.
+        llm: LLMWrapper (or OllamaWrapper) instance.
         world_model: WorldModel for constraint lookup.
         geometry: GeometryService for sandboxed code execution.
     """

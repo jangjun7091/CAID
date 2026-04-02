@@ -16,6 +16,7 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
     "python-dotenv>=1.0.0",
+    "openai>=1.0.0",
     # Geometry / simulation (install separately — see README):
     # cadquery>=2.4.0
     # gmsh>=4.12.0

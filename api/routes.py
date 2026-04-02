@@ -355,12 +355,16 @@ def _part_to_dict(part: PartRecord) -> dict:
 def _run_design(session_id: str, request: DesignRequest) -> None:
     """Background task: run the full CAID orchestrator and store the result."""
     try:
+        use_local = os.environ.get("CAID_USE_LOCAL_LLM", "").lower() in ("1", "true", "yes")
         orchestrator = AgentOrchestrator.create(
             api_key=os.environ.get("ANTHROPIC_API_KEY"),
             model=os.environ.get("CAID_MODEL", "claude-sonnet-4-6"),
             output_dir=_OUTPUT_DIR / session_id,
             max_iterations=request.max_iterations,
             repository=_part_repo,
+            use_local_llm=use_local,
+            ollama_model=os.environ.get("CAID_OLLAMA_MODEL", "llama3"),
+            ollama_base_url=os.environ.get("CAID_OLLAMA_URL", "http://localhost:11434"),
         )
         session = orchestrator.run(request.brief)
 

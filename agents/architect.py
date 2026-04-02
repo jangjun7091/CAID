@@ -32,6 +32,25 @@ from core.world_model import WorldModel
 
 logger = logging.getLogger(__name__)
 
+# Aliases for process values that LLMs sometimes return instead of the exact enum string.
+_PROCESS_ALIASES: dict[str, str] = {
+    "cnc milling": "CNC",
+    "cnc machining": "CNC",
+    "cnc": "CNC",
+    "fdm printing": "FDM",
+    "fused deposition modeling": "FDM",
+    "fdm": "FDM",
+    "3d printing": "FDM",
+    "selective laser sintering": "SLS",
+    "sls printing": "SLS",
+    "sls": "SLS",
+}
+
+
+def _normalize_process(value: str) -> str:
+    """Map common LLM-returned process strings to canonical ManufacturingProcess values."""
+    return _PROCESS_ALIASES.get(value.lower().strip(), value.upper().strip())
+
 
 # ---------------------------------------------------------------------------
 # Pydantic schemas for structured LLM output
@@ -123,7 +142,7 @@ class ArchitectAgent:
             _DesignSpecSchema,
         )
 
-        process = ManufacturingProcess(raw.process)
+        process = ManufacturingProcess(_normalize_process(raw.process))
 
         # Validate material/process compatibility
         ok, reason = self._wm.validate_process_compatibility(raw.material, process)
